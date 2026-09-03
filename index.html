@@ -1,73 +1,185 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+const email =
+        document.getElementById("email").value.trim();
 
-  <title>بيناتنا 💜</title>
+      const password =
+        document.getElementById("password").value;
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #f7efff, #fff5fa);
-      color: #4b3155;
-      text-align: center;
-      padding: 30px 15px;
+      const { data, error } =
+        await client.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+
+      if (error) {
+        document.getElementById("error").innerText =
+          error.message;
+        return;
+      }
+
+      currentUser = data.user;
+
+      document.getElementById("auth").style.display =
+        "none";
+
+      document.getElementById("chat").style.display =
+        "block";
+
+      await createProfile();
+      await loadUsers();
     }
 
-    .box {
-      max-width: 600px;
-      margin: auto;
-      background: white;
-      padding: 25px;
-      border-radius: 30px;
-      box-shadow: 0 8px 30px #ddd;
+    async function createProfile() {
+
+      const username =
+        currentUser.user_metadata?.username ||
+        currentUser.email.split("@")[0];
+
+      const { error } = await client
+        .from("profiles")
+        .upsert({
+          id: currentUser.id,
+          username: username
+        });
+
+      if (error) {
+        console.log(error);
+      }
     }
-  </style>
-</head>
 
-<body>
+    async function loadUsers() {
 
-  <div class="box">
+      const { data, error } = await client
+        .from("profiles")
+        .select("*")
+        .neq("id", currentUser.id);
 
-    <h1>💜 بيناتنا</h1>
+      if (error) {
+        console.log(error);
+        return;
+      }
 
-    <p>مكاننا الخاص 🌷</p>
-<div id="auth">
+      const usersDiv =
+        document.getElementById("users");
 
-  <h2>تسجيل الدخول 💜</h2>
+      usersDiv.innerHTML = "";
 
-  <input type="email" id="email" placeholder="الإيميل">
+      data.forEach(user => {
 
-  <input type="password" id="password" placeholder="كلمة المرور">
+        const div =
+          document.createElement("div");
 
-  <input type="text" id="username" placeholder="اسم المستخدم">
+        div.className = "user";
 
-  <button>إنشاء حساب</button>
+        div.innerText =
+          "👤 " + user.username;
 
-  <button>تسجيل الدخول</button>
-<div id="chat" style="display:none;">
+        div.onclick = () => openChat(user);
 
-  <h2>أهلًا بيچ 🌷</h2>
+        usersDiv.appendChild(div);
+      });
+    }
 
-  <p>اختاري صديقتچ حتى تبدون المحادثة 💬</p>
+    function openChat(user) {
 
-  <div id="users"></div>
+      selectedUser = user;
 
-  <div id="messages"></div>
+      document.getElementById("chatTitle").innerText =
+        "💬 محادثة مع " + user.username;
 
-  <input
-    type="text"
-    id="message"
-    placeholder="اكتبي رسالة..."
-  >
+      loadMessages();
+    }
 
-  <button>إرسال 💜</button>
+    async function loadMessages() {
 
-</div>
-</div>
-  </div>
+      if (!selectedUser) return;
+
+      const { data, error } = await client
+        .from("messages")
+        .select("*")
+        .or(
+          and(sender_id.eq.${currentUser.id},receiver_id.eq.${selectedUser.id}),and(sender_id.eq.${selectedUser.id},receiver_id.eq.${currentUser.id})
+        )
+        .order("created_at", {
+          ascending: true
+        });
+
+      if (error) {
+        console.log(error);
+        return;
+      }
+
+      const messagesDiv =
+        document.getElementById("messages");
+
+      messagesDiv.innerHTML = "";
+
+      data.forEach(message => {
+
+        const div =
+          document.createElement("div");
+
+        div.className = "message";
+
+        div.innerText =
+          message.sender_id === currentUser.id
+            ? "أنا: " + message.content
+            : "👤 " + message.content;
+
+        messagesDiv.appendChild(div);
+      });
+
+      messagesDiv.scrollTop =
+        messagesDiv.scrollHeight;
+    }
+
+    async function sendMessage() {
+
+      if (!selectedUser) {
+        alert("اختاري صديقة أولًا 💜");
+        return;
+      }
+
+      const input =
+        document.getElementById("message");
+
+      const content =
+        input.value.trim();
+
+      if (!content) return;
+
+      const { error } = await client
+        .from("messages")
+        .insert({
+          sender_id: currentUser.id,
+          receiver_id: selectedUser.id,
+          content: content
+        });
+
+      if (error) {
+        alert(error.message);
+        return;
+      }
+
+      input.value = "";
+
+      await loadMessages();
+    }
+
+    async function logout() {
+
+      await client.auth.signOut();
+
+      currentUser = null;
+      selectedUser = null;
+
+      document.getElementById("chat").style.display =
+        "none";
+
+      document.getElementById("auth").style.display =
+        "block";
+    }
+
+  </script>
 
 </body>
-    </html>
+</html>
